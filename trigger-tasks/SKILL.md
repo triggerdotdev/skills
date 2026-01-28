@@ -1,5 +1,5 @@
 ---
-name: tasks
+name: trigger-tasks
 description: Build AI agents, workflows and durable background tasks with Trigger.dev. Use when creating tasks, triggering jobs, handling retries, scheduling cron jobs, or implementing queues and concurrency control.
 ---
 

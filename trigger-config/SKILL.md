@@ -1,5 +1,5 @@
 ---
-name: config
+name: trigger-config
 description: Configure Trigger.dev projects with trigger.config.ts. Use when setting up build extensions for Prisma, Playwright, FFmpeg, Python, or customizing deployment settings.
 ---
 

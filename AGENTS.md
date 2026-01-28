@@ -5,25 +5,25 @@ This repository contains skills for building durable background tasks and AI age
 ## Skills Structure
 
 ```
-setup/
+trigger-setup/
 ├── SKILL.md              # Getting started
 └── references/
     ├── project-structure.md
     └── environment-setup.md
 
-tasks/
+trigger-tasks/
 ├── SKILL.md              # Core task patterns
 └── references/
     ├── basic-tasks.md
     ├── advanced-tasks.md
     └── scheduled-tasks.md
 
-config/
+trigger-config/
 ├── SKILL.md              # Build configuration
 └── references/
     └── config.md
 
-agents/
+trigger-agents/
 ├── SKILL.md              # AI agent patterns
 └── references/
     ├── orchestration.md
@@ -31,7 +31,7 @@ agents/
     ├── streaming.md
     └── ai-tool.md
 
-realtime/
+trigger-realtime/
 ├── SKILL.md              # Realtime subscriptions
 └── references/
     └── realtime.md
@@ -54,11 +54,11 @@ Instructions for the agent...
 
 ## When to Load Skills
 
-- **setup**: When adding Trigger.dev to a project for the first time
-- **tasks**: When creating background jobs, async workflows, or scheduled tasks
-- **config**: When setting up `trigger.config.ts` or adding build extensions
-- **agents**: When building LLM-powered workflows, orchestration, or multi-step AI agents
-- **realtime**: When building React UIs that show task progress or stream data
+- **trigger-setup**: When adding Trigger.dev to a project for the first time
+- **trigger-tasks**: When creating background jobs, async workflows, or scheduled tasks
+- **trigger-config**: When setting up `trigger.config.ts` or adding build extensions
+- **trigger-agents**: When building LLM-powered workflows, orchestration, or multi-step AI agents
+- **trigger-realtime**: When building React UIs that show task progress or stream data
 
 ## Key Patterns
 

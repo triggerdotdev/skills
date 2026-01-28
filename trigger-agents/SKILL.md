@@ -1,5 +1,5 @@
 ---
-name: agents
+name: trigger-agents
 description: AI agent patterns with Trigger.dev - orchestration, parallelization, routing, evaluator-optimizer, and human-in-the-loop. Use when building LLM-powered tasks that need parallel workers, approval gates, tool calling, or multi-step agent workflows.
 ---
 

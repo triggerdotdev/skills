@@ -1,5 +1,5 @@
 ---
-name: setup
+name: trigger-setup
 description: Set up Trigger.dev in your project. Use when adding Trigger.dev for the first time, creating trigger.config.ts, or initializing the trigger directory.
 ---
 
@@ -121,7 +121,7 @@ TRIGGER_SECRET_KEY=tr_dev_xxxxx  # From dashboard > API Keys
 
 ## Next Steps
 
-- Add retry logic → see **tasks** skill
-- Configure build extensions → see **config** skill
-- Build AI workflows → see **agents** skill
-- Add real-time UI → see **realtime** skill
+- Add retry logic → see **trigger-tasks** skill
+- Configure build extensions → see **trigger-config** skill
+- Build AI workflows → see **trigger-agents** skill
+- Add real-time UI → see **trigger-realtime** skill
