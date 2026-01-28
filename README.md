@@ -11,16 +11,16 @@ Agent skills for building AI agents, workflows and durable background tasks with
 npx skills add triggerdotdev/skills
 
 # Or install specific skills
-npx skills add triggerdotdev/skills --skill setup
-npx skills add triggerdotdev/skills --skill tasks
-npx skills add triggerdotdev/skills --skill config
-npx skills add triggerdotdev/skills --skill agents
-npx skills add triggerdotdev/skills --skill realtime
+npx skills add triggerdotdev/skills --skill trigger-setup
+npx skills add triggerdotdev/skills --skill trigger-tasks
+npx skills add triggerdotdev/skills --skill trigger-config
+npx skills add triggerdotdev/skills --skill trigger-agents
+npx skills add triggerdotdev/skills --skill trigger-realtime
 ```
 
 ## Available Skills
 
-### setup
+### trigger-setup
 
 Use when getting started with Trigger.dev:
 
@@ -31,7 +31,7 @@ Use when getting started with Trigger.dev:
 - First task walkthrough
 - Environment variables
 
-### tasks
+### trigger-tasks
 
 Use when creating background jobs, async workflows, or scheduled tasks. Core patterns for building durable tasks:
 
@@ -44,7 +44,7 @@ Use when creating background jobs, async workflows, or scheduled tasks. Core pat
 - Scheduled tasks (cron)
 - Metadata and progress tracking
 
-### config
+### trigger-config
 
 Use when setting up `trigger.config.ts` or adding build extensions:
 
@@ -54,7 +54,7 @@ Use when setting up `trigger.config.ts` or adding build extensions:
 - Telemetry integration
 - Global lifecycle hooks
 
-### agents
+### trigger-agents
 
 Use when building LLM-powered workflows, orchestration, or multi-step AI agents:
 
@@ -65,7 +65,7 @@ Use when building LLM-powered workflows, orchestration, or multi-step AI agents:
 - Evaluator-optimizer loops
 - Human-in-the-loop with waitpoints
 
-### realtime
+### trigger-realtime
 
 Use when subscribing to task runs in real-time from frontend or backend:
 
