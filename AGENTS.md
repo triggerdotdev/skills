@@ -35,6 +35,11 @@ trigger-realtime/
 ├── SKILL.md              # Realtime subscriptions
 └── references/
     └── realtime.md
+
+trigger-cost-savings/
+├── SKILL.md              # Cost optimization analysis
+└── references/
+    └── cost-reduction.md
 ```
 
 ## Skill Format
@@ -59,6 +64,7 @@ Instructions for the agent...
 - **trigger-config**: When setting up `trigger.config.ts` or adding build extensions
 - **trigger-agents**: When building LLM-powered workflows, orchestration, or multi-step AI agents
 - **trigger-realtime**: When building React UIs that show task progress or stream data
+- **trigger-cost-savings**: When asked to reduce spend, optimize costs, audit usage, or review task efficiency
 
 ## Key Patterns
 
