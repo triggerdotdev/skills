@@ -16,6 +16,7 @@ npx skills add triggerdotdev/skills --skill trigger-tasks
 npx skills add triggerdotdev/skills --skill trigger-config
 npx skills add triggerdotdev/skills --skill trigger-agents
 npx skills add triggerdotdev/skills --skill trigger-realtime
+npx skills add triggerdotdev/skills --skill trigger-cost-savings
 ```
 
 ## Available Skills
@@ -73,6 +74,19 @@ Use when subscribing to task runs in real-time from frontend or backend:
 - React hooks for triggering and monitoring tasks
 - Streaming AI/LLM responses to UI
 - Wait tokens for human-in-the-loop workflows
+
+### trigger-cost-savings
+
+Use when analyzing tasks and runs for cost optimization. Requires [Trigger.dev MCP tools](https://trigger.dev/docs/mcp-introduction) for run analysis:
+
+- Right-sizing machine presets
+- Identifying excessive retries and missing abort conditions
+- Finding missing debounce, idempotency, and maxDuration
+- Detecting polling loops that should use waitpoints
+- Analyzing run data for high-cost tasks and failure patterns
+- Schedule frequency review
+
+Install MCP tools: `npx trigger.dev@latest install-mcp`
 
 ## What is Trigger.dev?
 
