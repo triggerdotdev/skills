@@ -40,6 +40,14 @@ trigger-cost-savings/
 ├── SKILL.md              # Cost optimization analysis
 └── references/
     └── cost-reduction.md
+
+trigger-api/
+├── SKILL.md              # Management API SDK
+└── references/
+    ├── runs-and-tasks.md
+    ├── schedules.md
+    ├── queues-envvars-waitpoints.md
+    └── batches-and-query.md
 ```
 
 ## Skill Format
@@ -65,6 +73,7 @@ Instructions for the agent...
 - **trigger-agents**: When building LLM-powered workflows, orchestration, or multi-step AI agents
 - **trigger-realtime**: When building React UIs that show task progress or stream data
 - **trigger-cost-savings**: When asked to reduce spend, optimize costs, audit usage, or review task efficiency
+- **trigger-api**: When managing runs, triggering tasks from backend code, managing schedules/env vars/queues via SDK, or querying run data
 
 ## Key Patterns
 
