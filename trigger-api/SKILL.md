@@ -29,13 +29,13 @@ npm i @trigger.dev/sdk@latest
 ### Secret Key (environment-scoped)
 
 ```ts
-import { configure, runs } from "@trigger.dev/sdk";
+import { configure, query } from "@trigger.dev/sdk";
 
 configure({
   secretKey: process.env["TRIGGER_SECRET_KEY"], // starts with tr_dev_, tr_stg_, or tr_prod_
 });
 
-const allRuns = await runs.list({ limit: 10, status: ["COMPLETED"] });
+const result = await query.execute("SELECT run_id, status FROM runs WHERE status = 'Completed' LIMIT 10");
 ```
 
 If `TRIGGER_SECRET_KEY` is set in the environment, you can omit the `configure` call entirely.
@@ -63,7 +63,7 @@ PAT authentication works **via the SDK only** — it does not work as a raw HTTP
 | Resource | Secret Key | PAT (SDK only) |
 |----------|-----------|----------------|
 | tasks.trigger, tasks.batchTrigger | ✅ | |
-| runs.list | ✅ | ❌ (broken) |
+| runs.list | ✅ | ❌ (broken) | ⚠️ unreliable — prefer `query.execute` (TRQL) |
 | runs.retrieve, cancel, replay | ✅ | |
 | envvars.* | ✅ | ✅ |
 | schedules.* | ✅ | |
@@ -87,10 +87,16 @@ All Management API endpoints are accessible via REST. Use this when you don't ha
 // Base URL: https://api.trigger.dev
 // Auth: Authorization: Bearer <secretKey>
 
-const response = await fetch("https://api.trigger.dev/api/v1/runs?filter[status]=COMPLETED&page[size]=10", {
+const response = await fetch("https://api.trigger.dev/api/v1/query", {
+  method: "POST",
   headers: {
     Authorization: `Bearer ${process.env["TRIGGER_SECRET_KEY"]}`,
+    "Content-Type": "application/json",
   },
+  body: JSON.stringify({
+    query: "SELECT run_id, status, triggered_at FROM runs WHERE status = 'Completed' LIMIT 10",
+    options: { period: "7d" },
+  }),
 });
 const data = await response.json();
 ```
@@ -229,17 +235,28 @@ console.log("Run ID:", handle.id);
 
 ### List & Filter Runs
 
-```ts
-import { runs } from "@trigger.dev/sdk";
+> **⚠️ `runs.list` is currently unreliable.** Use `query.execute` (TRQL) to fetch runs instead. TRQL is a SQL-like query language that supports filtering, aggregation, and sorting. See `references/batches-and-query.md` for full documentation.
 
-for await (const run of runs.list({
-  status: ["COMPLETED", "FAILED"],
-  taskIdentifier: ["process-data"],
-  period: "7d",
-  tag: ["user_123"],
-})) {
-  console.log(run.id, run.status, run.taskIdentifier);
-}
+```ts
+import { query } from "@trigger.dev/sdk";
+
+// Recent failed runs
+const failed = await query.execute(
+  "SELECT run_id, task_identifier, status, triggered_at FROM runs WHERE status = 'Failed' ORDER BY triggered_at DESC LIMIT 20",
+  { period: "7d" }
+);
+
+// Runs for a specific task
+const taskRuns = await query.execute(
+  "SELECT run_id, status, execution_duration, total_cost FROM runs WHERE task_identifier = 'process-data' ORDER BY triggered_at DESC LIMIT 50",
+  { period: "30d" }
+);
+
+// Summary by task
+const summary = await query.execute(
+  "SELECT task_identifier, COUNT(*) as runs, countIf(status = 'Failed') as failures, AVG(execution_duration) as avg_ms FROM runs GROUP BY task_identifier",
+  { period: "7d" }
+);
 ```
 
 ### Create a Schedule
@@ -281,11 +298,11 @@ await envvars.create("proj_1234", "prod", {
 
 ## Best Practices
 
-1. Use **secretKey** for single-environment automation; **PAT** for cross-environment tooling
-2. Always configure **retry settings** for production scripts
-3. Use `deduplicationKey` on schedules to prevent duplicates on redeploy
-4. **Filter runs by tags** for efficient lookups instead of listing all
-5. Use `query.execute` for analytics instead of paginating through all runs
+1. **Use `query.execute` (TRQL) to fetch runs** — `runs.list` is currently unreliable; TRQL works and supports filtering, aggregation, and sorting
+2. Use **secretKey** for single-environment automation; **PAT** for cross-environment tooling
+3. Always configure **retry settings** for production scripts
+4. Use `deduplicationKey` on schedules to prevent duplicates on redeploy
+5. Use `runs.retrieve` to get full details on a specific run by ID (this works fine)
 6. Check `run.isSuccess` / `run.isFailed` helpers instead of comparing status strings
 
 See `references/` for full API documentation by resource group.

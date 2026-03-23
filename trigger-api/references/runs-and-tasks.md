@@ -83,6 +83,8 @@ console.log(result.runs);    // ["run_1234", "run_5678"]
 
 ## Runs -- List & Filter
 
+> **⚠️ `runs.list` is currently unreliable.** Prefer `query.execute` (TRQL) for fetching and filtering runs. TRQL supports `SELECT`, `WHERE`, `GROUP BY`, `ORDER BY`, and aggregation. See `references/batches-and-query.md` for full documentation and examples.
+
 ### runs.list(options)
 
 List runs with filtering and cursor-based pagination.
