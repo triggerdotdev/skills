@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-marketplace.json",
+  "name": "trigger-skills",
+  "description": "Trigger.dev agent skills for Claude Code — durable background tasks, AI agents, realtime, and cost optimization.",
+  "owner": {
+    "name": "Trigger.dev",
+    "email": "hello@trigger.dev"
+  },
+  "plugins": [
+    {
+      "name": "trigger",
+      "source": "./",
+      "description": "Agent skills for building AI agents, workflows, and durable background tasks with Trigger.dev.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Trigger.dev"
+      },
+      "homepage": "https://trigger.dev/docs",
+      "repository": "https://github.com/triggerdotdev/skills",
+      "license": "MIT",
+      "keywords": [
+        "trigger.dev",
+        "background-jobs",
+        "durable-execution",
+        "ai-agents",
+        "workflows"
+      ],
+      "category": "development-workflows"
+    }
+  ]
+}
