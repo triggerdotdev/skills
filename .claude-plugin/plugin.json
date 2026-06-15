@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "trigger",
+  "version": "0.1.0",
+  "description": "Agent skills for building AI agents, workflows, and durable background tasks with Trigger.dev.",
+  "author": {
+    "name": "Trigger.dev",
+    "url": "https://trigger.dev"
+  },
+  "homepage": "https://trigger.dev/docs",
+  "repository": "https://github.com/triggerdotdev/skills",
+  "license": "MIT",
+  "keywords": [
+    "trigger.dev",
+    "background-jobs",
+    "durable-execution",
+    "ai-agents",
+    "workflows",
+    "skills"
+  ],
+  "skills": "./"
+}

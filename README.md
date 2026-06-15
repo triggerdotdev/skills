@@ -6,6 +6,8 @@ Agent skills for building AI agents, workflows and durable background tasks with
 
 ## Installation
 
+### Using `skills` CLI
+
 ```bash
 # Install all skills
 npx skills add triggerdotdev/skills
@@ -18,6 +20,25 @@ npx skills add triggerdotdev/skills --skill trigger-agents
 npx skills add triggerdotdev/skills --skill trigger-realtime
 npx skills add triggerdotdev/skills --skill trigger-cost-savings
 ```
+
+### As a Claude Code plugin
+
+This repository also ships as a [Claude Code plugin](https://code.claude.com/docs/en/plugins), bundling all six skills together.
+
+From within Claude Code, add this repo as a marketplace and install the plugin:
+
+```
+/plugin marketplace add triggerdotdev/skills
+/plugin install trigger@trigger-skills
+```
+
+Then reload plugins to activate:
+
+```
+/reload-plugins
+```
+
+All six skills become available namespaced under the plugin (for example, the `trigger-setup` skill is invoked as `/trigger:trigger-setup`).
 
 ## Available Skills
 
