@@ -2,7 +2,7 @@ name: Sync skills from monorepo
 
 on:
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: "37 6 * * 1"
   workflow_dispatch:
 
 permissions:
