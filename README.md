@@ -17,6 +17,7 @@ npx skills add triggerdotdev/skills --skill trigger-config
 npx skills add triggerdotdev/skills --skill trigger-agents
 npx skills add triggerdotdev/skills --skill trigger-realtime
 npx skills add triggerdotdev/skills --skill trigger-cost-savings
+npx skills add triggerdotdev/skills --skill trigger-api
 ```
 
 ## Available Skills
@@ -87,6 +88,20 @@ Use when analyzing tasks and runs for cost optimization. Requires [Trigger.dev M
 - Schedule frequency review
 
 Install MCP tools: `npx trigger.dev@latest install-mcp`
+
+### trigger-api
+
+Use when managing Trigger.dev resources programmatically from backend code:
+
+- Listing, filtering, and monitoring runs
+- Triggering tasks from backend scripts and servers
+- Managing schedules (create, update, delete, activate/deactivate)
+- Managing environment variables across environments
+- Pausing/resuming queues and overriding concurrency limits
+- Creating and completing waitpoint tokens
+- Querying run data with TRQL
+- Inspecting and promoting deployments
+- Authentication with secret keys and personal access tokens
 
 ## What is Trigger.dev?
 
