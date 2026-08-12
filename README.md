@@ -4,89 +4,73 @@
 
 Agent skills for building AI agents, workflows and durable background tasks with [Trigger.dev](https://trigger.dev).
 
+> **This repo is an automatic mirror.** The skills are maintained in the [Trigger.dev monorepo](https://github.com/triggerdotdev/trigger.dev/tree/main/packages/cli-v3/skills) and shipped inside the `@trigger.dev/sdk` package. A workflow syncs them here so they're installable via [skills.sh](https://skills.sh). **Do not edit skills in this repo** — edit them in the monorepo and the change flows here automatically. See [AGENTS.md](./AGENTS.md).
+
 ## Installation
 
 ```bash
 # Install all skills
 npx skills add triggerdotdev/skills
 
-# Or install specific skills
+# Or install a specific skill (see the list below)
 npx skills add triggerdotdev/skills --skill trigger-setup
-npx skills add triggerdotdev/skills --skill trigger-tasks
-npx skills add triggerdotdev/skills --skill trigger-config
-npx skills add triggerdotdev/skills --skill trigger-agents
-npx skills add triggerdotdev/skills --skill trigger-realtime
+```
+
+Already using Trigger.dev? These same skills ship with the SDK and can be installed straight into your coding agent with `npx trigger.dev@latest install-mcp`.
+
+## Available skills
+
+<!-- SKILLS:START -->
+
+### `trigger-authoring-chat-agent`
+
+Author and run a durable AI chat agent with chat.agent from @trigger.dev/sdk/ai: the per-turn run loop, why you MUST spread ...chat.toStreamTextOptions() first, returning a StreamTextResult vs calling chat.pipe(), the two server actions (chat.createStartSessionAction + auth.createPublicToken), and wiring useChat to useTriggerChatTransport. Load this when building, modifying, or debugging a chat backend (the agent task or its lifecycle hooks) or its React transport, when declaring typed tools or custom data parts, or when migrating a plain AI SDK streamText route to chat.agent.
+
+```bash
+npx skills add triggerdotdev/skills --skill trigger-authoring-chat-agent
+```
+
+### `trigger-chat-agent-advanced`
+
+Advanced and operational chat.agent capabilities for Trigger.dev, loaded on demand. Load this when working on the raw Sessions primitive (sessions / SessionHandle), a custom chat transport or the realtime wire protocol, durable sub-agents (AgentChat, chat.stream.writer), human-in-the-loop, steering, actions, background injection (chat.defer / chat.inject), fast starts (preload, Head Start via @trigger.dev/sdk/chat-server), context resilience (compaction, recovery boot, OOM, large payloads), chat.local run-scoped state, offline testing with mockChatAgent, or prerelease/version upgrades. For the everyday chat.agent({...}) definition and the useTriggerChatTransport happy path, use the trigger-authoring-chat-agent skill instead.
+
+```bash
+npx skills add triggerdotdev/skills --skill trigger-chat-agent-advanced
+```
+
+### `trigger-cost-savings`
+
+Analyze Trigger.dev tasks, schedules, and runs for cost optimization opportunities. Use when asked to reduce spend, optimize costs, audit usage, right-size machines, or review task efficiency. Combines static source analysis with live run analysis via the Trigger.dev MCP tools (list_runs, get_run_details, get_current_worker).
+
+```bash
 npx skills add triggerdotdev/skills --skill trigger-cost-savings
 ```
 
-## Available Skills
+### `trigger-realtime`
 
-### trigger-setup
+Trigger.dev client/frontend surface: subscribe to runs in realtime (runs.subscribeToRun and the @trigger.dev/react-hooks hook useRealtimeRun), consume metadata and AI/text streams in React (useRealtimeStream), trigger tasks from the browser (useTaskTrigger, useRealtimeTaskTrigger), and mint scoped frontend credentials with auth.createPublicToken / auth.createTriggerPublicToken. Load when wiring a frontend (React/Next.js/Remix) or backend-for-frontend to show live run progress, status badges, token streams, trigger buttons, or wait-token approval UIs. NOT for writing the backend task itself (streams.define / metadata.set is trigger-tasks territory); this is the consumer side.
 
-Use when getting started with Trigger.dev:
+```bash
+npx skills add triggerdotdev/skills --skill trigger-realtime
+```
 
-- Installing the SDK
-- Running `npx trigger init`
-- Creating trigger.config.ts
-- Project structure
-- First task walkthrough
-- Environment variables
+### `trigger-setup`
 
-### trigger-tasks
+Bootstrap Trigger.dev into an existing project from scratch: authenticate the CLI, install @trigger.dev/sdk and @trigger.dev/build, write trigger.config.ts with the project ref and task dirs, scaffold a /trigger directory with a first task, wire tsconfig and .gitignore, set TRIGGER_SECRET_KEY, and run the dev server. Load this when a project has no trigger.config.ts yet and the user asks to "add Trigger.dev", "set up Trigger.dev", "initialize Trigger.dev", or get a first task running, including in a monorepo. Once the project is set up and you are writing task code, switch to the trigger-tasks skill.
 
-Use when creating background jobs, async workflows, or scheduled tasks. Core patterns for building durable tasks:
+```bash
+npx skills add triggerdotdev/skills --skill trigger-setup
+```
 
-- Basic and schema-validated tasks
-- Triggering tasks (single, batch, with wait)
-- Waits and checkpointing
-- Concurrency and queues
-- Debouncing and idempotency
-- Error handling and retries
-- Scheduled tasks (cron)
-- Metadata and progress tracking
+### `trigger-tasks`
 
-### trigger-config
+Covers writing backend Trigger.dev tasks with @trigger.dev/sdk: defining task() and schemaTask(), the run function and its ctx, retries, waits, queues and concurrency, idempotency keys, run metadata, logging, triggering other tasks (and the Result shape), scheduled/cron tasks, and the essentials of trigger.config.ts. Load this whenever you are authoring or editing code inside a /trigger directory, defining a task, or writing backend code that triggers tasks. Realtime/React hooks and AI chat are covered by separate skills.
 
-Use when setting up `trigger.config.ts` or adding build extensions:
+```bash
+npx skills add triggerdotdev/skills --skill trigger-tasks
+```
 
-- Build extensions (Prisma, Playwright, FFmpeg, Python)
-- System packages and additional files
-- Environment variable sync
-- Telemetry integration
-- Global lifecycle hooks
-
-### trigger-agents
-
-Use when building LLM-powered workflows, orchestration, or multi-step AI agents:
-
-- Prompt chaining with validation gates
-- Routing (classify → dispatch)
-- Parallelization with batch operations
-- Orchestrator-workers (fan-out/fan-in)
-- Evaluator-optimizer loops
-- Human-in-the-loop with waitpoints
-
-### trigger-realtime
-
-Use when subscribing to task runs in real-time from frontend or backend:
-
-- Progress indicators and live dashboards
-- React hooks for triggering and monitoring tasks
-- Streaming AI/LLM responses to UI
-- Wait tokens for human-in-the-loop workflows
-
-### trigger-cost-savings
-
-Use when analyzing tasks and runs for cost optimization. Requires [Trigger.dev MCP tools](https://trigger.dev/docs/mcp-introduction) for run analysis:
-
-- Right-sizing machine presets
-- Identifying excessive retries and missing abort conditions
-- Finding missing debounce, idempotency, and maxDuration
-- Detecting polling loops that should use waitpoints
-- Analyzing run data for high-cost tasks and failure patterns
-- Schedule frequency review
-
-Install MCP tools: `npx trigger.dev@latest install-mcp`
+<!-- SKILLS:END -->
 
 ## What is Trigger.dev?
 

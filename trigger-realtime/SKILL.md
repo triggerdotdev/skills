@@ -1,288 +1,276 @@
 ---
 name: trigger-realtime
-description: Subscribe to Trigger.dev task runs in real-time from frontend and backend. Use when building progress indicators, live dashboards, streaming AI/LLM responses, or React components that display task status.
+description: >
+  Trigger.dev client/frontend surface: subscribe to runs in realtime
+  (runs.subscribeToRun and the @trigger.dev/react-hooks hook useRealtimeRun),
+  consume metadata and AI/text streams in React (useRealtimeStream), trigger
+  tasks from the browser (useTaskTrigger, useRealtimeTaskTrigger), and mint
+  scoped frontend credentials with auth.createPublicToken /
+  auth.createTriggerPublicToken.
+  Load when wiring a frontend (React/Next.js/Remix) or backend-for-frontend to
+  show live run progress, status badges, token streams, trigger buttons, or
+  wait-token approval UIs. NOT for writing the backend task itself (streams.define
+  / metadata.set is trigger-tasks territory); this is the consumer side.
+type: core
+library: trigger.dev
+sources:
+  - docs/realtime/overview.mdx
+  - docs/realtime/how-it-works.mdx
+  - docs/realtime/auth.mdx
+  - docs/realtime/run-object.mdx
+  - docs/realtime/react-hooks/overview.mdx
+  - docs/realtime/react-hooks/subscribe.mdx
+  - docs/realtime/react-hooks/triggering.mdx
+  - docs/realtime/react-hooks/streams.mdx
+  - docs/realtime/react-hooks/swr.mdx
+  - docs/realtime/react-hooks/use-wait-token.mdx
+  - docs/realtime/backend/subscribe.mdx
 ---
 
-# Trigger.dev Realtime
+# Realtime and Frontend
 
-Subscribe to task runs and stream data in real-time from frontend and backend.
+The consumer side of Trigger.dev's run state and streams: read live run
+updates, render AI/text streams, and trigger tasks from a browser. Hooks come
+from `@trigger.dev/react-hooks`; token minting and backend subscription come
+from `@trigger.dev/sdk`.
 
-## When to Use
-
-- Building progress indicators for long-running tasks
-- Creating live dashboards showing task status
-- Streaming AI/LLM responses to the UI
-- React components that trigger and monitor tasks
-- Waiting for user approval in tasks
-
-## Authentication
-
-### Create Public Access Token (Backend)
-
-```ts
-import { auth } from "@trigger.dev/sdk";
-
-// Read-only token for specific runs
-const publicToken = await auth.createPublicToken({
-  scopes: {
-    read: {
-      runs: ["run_123"],
-      tasks: ["my-task"],
-    },
-  },
-  expirationTime: "1h",
-});
-
-// Pass this token to your frontend
-```
-
-### Create Trigger Token (for frontend triggering)
-
-```ts
-const triggerToken = await auth.createTriggerPublicToken("my-task", {
-  expirationTime: "30m",
-});
-```
-
-## Backend Subscriptions
-
-```ts
-import { runs, tasks } from "@trigger.dev/sdk";
-
-// Trigger and subscribe
-const handle = await tasks.trigger("my-task", { data: "value" });
-
-for await (const run of runs.subscribeToRun(handle.id)) {
-  console.log(`Status: ${run.status}`);
-  console.log(`Progress: ${run.metadata?.progress}`);
-  
-  if (run.status === "COMPLETED") {
-    console.log("Output:", run.output);
-    break;
-  }
-}
-
-// Subscribe to tagged runs
-for await (const run of runs.subscribeToRunsWithTag("user-123")) {
-  console.log(`Run ${run.id}: ${run.status}`);
-}
-
-// Subscribe to batch
-for await (const run of runs.subscribeToBatch(batchId)) {
-  console.log(`Batch run ${run.id}: ${run.status}`);
-}
-```
-
-## React Hooks
-
-### Installation
+## Setup
 
 ```bash
-npm add @trigger.dev/react-hooks
+npm add @trigger.dev/react-hooks   # frontend hooks (React/Next.js/Remix)
+# @trigger.dev/sdk is already installed for the backend
 ```
 
-### Trigger Task from React
+The flow is always: mint a scoped token in the backend, pass it to the
+frontend, subscribe with a hook.
+
+```ts
+// backend (API route / server action)
+import { auth } from "@trigger.dev/sdk";
+
+const publicAccessToken = await auth.createPublicToken({
+  scopes: { read: { runs: ["run_1234"] } }, // a token with no scopes is useless
+});
+```
 
 ```tsx
+// frontend
 "use client";
-import { useRealtimeTaskTrigger } from "@trigger.dev/react-hooks";
-import type { myTask } from "../trigger/tasks";
+import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
-function TaskTrigger({ accessToken }: { accessToken: string }) {
-  const { submit, run, isLoading } = useRealtimeTaskTrigger<typeof myTask>(
-    "my-task",
-    { accessToken }
-  );
-
-  return (
-    <div>
-      <button 
-        onClick={() => submit({ data: "value" })} 
-        disabled={isLoading}
-      >
-        Start Task
-      </button>
-      
-      {run && (
-        <div>
-          <p>Status: {run.status}</p>
-          <p>Progress: {run.metadata?.progress}%</p>
-          {run.output && <p>Result: {JSON.stringify(run.output)}</p>}
-        </div>
-      )}
-    </div>
-  );
+export function RunStatus({ runId, publicAccessToken }: { runId: string; publicAccessToken: string }) {
+  const { run, error } = useRealtimeRun(runId, { accessToken: publicAccessToken });
+  if (error) return <div>Error: {error.message}</div>;
+  if (!run) return <div>Loading...</div>;
+  return <div>Run: {run.status}</div>;
 }
 ```
 
-### Subscribe to Existing Run
+There are two token kinds: Public Access Tokens (read/subscribe, from
+`auth.createPublicToken`) and Trigger Tokens (trigger-from-browser, single-use,
+from `auth.createTriggerPublicToken`). Both default to a 15 minute expiry.
+
+## Core patterns
+
+### 1. Subscribe to a run and render metadata progress
+
+`metadata` is `Record<string, DeserializedJson>`, so nested values need a cast.
 
 ```tsx
 "use client";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
-import type { myTask } from "../trigger/tasks";
+import type { myTask } from "@/trigger/myTask";
 
-function RunStatus({ runId, accessToken }: { runId: string; accessToken: string }) {
-  const { run, error } = useRealtimeRun<typeof myTask>(runId, {
-    accessToken,
-    onComplete: (run) => {
-      console.log("Completed:", run.output);
-    },
-  });
-
+export function Progress({ runId, publicAccessToken }: { runId: string; publicAccessToken: string }) {
+  const { run, error } = useRealtimeRun<typeof myTask>(runId, { accessToken: publicAccessToken });
   if (error) return <div>Error: {error.message}</div>;
   if (!run) return <div>Loading...</div>;
-
-  return (
-    <div>
-      <p>Status: {run.status}</p>
-      <p>Progress: {run.metadata?.progress || 0}%</p>
-    </div>
-  );
+  const progress = run.metadata?.progress as { percentage?: number } | undefined;
+  return <div>{run.status}: {progress?.percentage ?? 0}%</div>;
 }
 ```
 
-### Subscribe to Tagged Runs
+Pass `onComplete: (run, error) => {}` to react when the run finishes.
+
+### 2. Status-only subscription with `skipColumns`
+
+For a badge or progress bar you do not need `payload`/`output`. Skipping them
+reduces wire size and avoids "Large HTTP Payload" warnings.
+
+```tsx
+const { run } = useRealtimeRun(runId, {
+  accessToken: publicAccessToken,
+  skipColumns: ["payload", "output"],
+});
+```
+
+You can skip any of: `payload`, `output`, `metadata`, `startedAt`, `delayUntil`,
+`queuedAt`, `expiredAt`, `completedAt`, `number`, `isTest`, `usageDurationMs`,
+`costInCents`, `baseCostInCents`, `ttl`, `payloadType`, `outputType`, `runTags`,
+`error`.
+
+### 3. Trigger from the browser with a Trigger Token
+
+`accessToken` here is a Trigger Token (`auth.createTriggerPublicToken`), not a
+Public Access Token.
 
 ```tsx
 "use client";
-import { useRealtimeRunsWithTag } from "@trigger.dev/react-hooks";
+import { useTaskTrigger } from "@trigger.dev/react-hooks";
+import type { myTask } from "@/trigger/myTask";
 
-function UserTasks({ userId, accessToken }: { userId: string; accessToken: string }) {
-  const { runs } = useRealtimeRunsWithTag(`user-${userId}`, { accessToken });
-
+export function TriggerButton({ triggerToken }: { triggerToken: string }) {
+  const { submit, handle, isLoading } = useTaskTrigger<typeof myTask>("my-task", {
+    accessToken: triggerToken,
+  });
+  if (handle) return <div>Run ID: {handle.id}</div>;
   return (
-    <ul>
-      {runs.map((run) => (
-        <li key={run.id}>{run.id}: {run.status}</li>
-      ))}
-    </ul>
+    <button onClick={() => submit({ foo: "bar" }, { tags: ["user:123"] })} disabled={isLoading}>
+      {isLoading ? "Triggering..." : "Run"}
+    </button>
   );
 }
 ```
 
-## Realtime Streams (AI/LLM)
+`submit(payload, options?)` takes the same options as a backend `trigger` call.
 
-### Define Stream (shared location)
+### 4. Trigger and subscribe in one hook
 
-```ts
-// trigger/streams.ts
-import { streams } from "@trigger.dev/sdk";
+```tsx
+"use client";
+import { useRealtimeTaskTrigger } from "@trigger.dev/react-hooks";
+import type { myTask } from "@/trigger/myTask";
 
-export const aiStream = streams.define<string>({
-  id: "ai-output",
-});
+export function Runner({ publicAccessToken }: { publicAccessToken: string }) {
+  const { submit, run, isLoading } = useRealtimeTaskTrigger<typeof myTask>("my-task", {
+    accessToken: publicAccessToken,
+  });
+  if (run) return <div>{run.status}</div>;
+  return <button onClick={() => submit({ foo: "bar" })} disabled={isLoading}>Run</button>;
+}
 ```
 
-### Pipe Stream in Task
+Use `useRealtimeTaskTriggerWithStreams<typeof myTask, STREAMS>` when you also
+want the task's streams (it returns `{ submit, run, streams, error, isLoading }`).
 
-```ts
-import { task } from "@trigger.dev/sdk";
-import { aiStream } from "./streams";
+### 5. Consume an AI/text stream (SDK 4.1.0+, recommended)
 
-export const streamingTask = task({
-  id: "streaming-task",
-  run: async (payload: { prompt: string }) => {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [{ role: "user", content: payload.prompt }],
-      stream: true,
-    });
-
-    const { waitUntilComplete } = aiStream.pipe(completion);
-    await waitUntilComplete();
-  },
-});
-```
-
-### Read Stream in React
+`useRealtimeStream` takes a defined stream for full type safety, or a `runId`
+plus optional stream key. Returns `{ parts, error }`.
 
 ```tsx
 "use client";
 import { useRealtimeStream } from "@trigger.dev/react-hooks";
-import { aiStream } from "../trigger/streams";
+import { aiStream } from "@/trigger/streams"; // a defined stream -> typed parts
 
-function AIResponse({ runId, accessToken }: { runId: string; accessToken: string }) {
+export function StreamView({ runId, publicAccessToken }: { runId: string; publicAccessToken: string }) {
   const { parts, error } = useRealtimeStream(aiStream, runId, {
-    accessToken,
-    throttleInMs: 50,
+    accessToken: publicAccessToken,
+    timeoutInSeconds: 300, // default 60
+    onData: (chunk) => console.log(chunk),
   });
-
   if (error) return <div>Error: {error.message}</div>;
-  if (!parts) return <div>Waiting for response...</div>;
-
+  if (!parts) return <div>Loading...</div>;
   return <div>{parts.join("")}</div>;
 }
 ```
 
-## Wait Tokens (Human-in-the-loop)
+Without a defined stream: `useRealtimeStream<string>(runId, "ai-output", { accessToken })`,
+or omit the key to use the default stream. Other options: `baseURL`, `startIndex`,
+`throttleInMs` (default 16). The legacy `useRealtimeRunWithStreams(runId, options)`
+hook is still supported when you need both the run and all its streams at once.
 
-### In Task
+### 6. Send input back into a running task
 
-```ts
-import { task, wait } from "@trigger.dev/sdk";
+```tsx
+"use client";
+import { useInputStreamSend } from "@trigger.dev/react-hooks";
+import { approval } from "@/trigger/streams";
 
-export const approvalTask = task({
-  id: "approval-task",
-  run: async (payload) => {
-    // Process initial data
-    const processed = await processData(payload);
-
-    // Wait for human approval
-    const approval = await wait.forToken<{ approved: boolean }>({
-      token: `approval-${payload.id}`,
-      timeoutInSeconds: 86400, // 24 hours
-    });
-
-    if (approval.approved) {
-      return await finalizeData(processed);
-    }
-    
-    throw new Error("Not approved");
-  },
-});
+export function ApprovalForm({ runId, accessToken }: { runId: string; accessToken: string }) {
+  const { send, isLoading, isReady } = useInputStreamSend(approval.id, runId, { accessToken });
+  return (
+    <button disabled={!isReady || isLoading} onClick={() => send({ approved: true })}>
+      Approve
+    </button>
+  );
+}
 ```
 
-### Complete Token from React
+### 7. Complete a wait token from React
+
+```ts
+// backend: create the token, return id + publicAccessToken to the frontend
+import { wait } from "@trigger.dev/sdk";
+const token = await wait.createToken({ timeout: "10m" });
+return { tokenId: token.id, publicToken: token.publicAccessToken };
+```
 
 ```tsx
 "use client";
 import { useWaitToken } from "@trigger.dev/react-hooks";
 
-function ApprovalButton({ tokenId, accessToken }: { tokenId: string; accessToken: string }) {
-  const { complete } = useWaitToken(tokenId, { accessToken });
-
-  return (
-    <div>
-      <button onClick={() => complete({ approved: true })}>
-        Approve
-      </button>
-      <button onClick={() => complete({ approved: false })}>
-        Reject
-      </button>
-    </div>
-  );
+export function Approve({ tokenId, publicToken }: { tokenId: string; publicToken: string }) {
+  const { complete } = useWaitToken(tokenId, { accessToken: publicToken });
+  return <button onClick={() => complete({ approved: true })}>Approve</button>;
 }
 ```
 
-## Run Object Properties
+### 8. Subscribe from the backend (async iterators)
 
-| Property | Description |
-|----------|-------------|
-| `id` | Unique run identifier |
-| `status` | `QUEUED`, `EXECUTING`, `COMPLETED`, `FAILED`, `CANCELED` |
-| `payload` | Task input (typed) |
-| `output` | Task result (typed, when completed) |
-| `metadata` | Real-time updatable data |
-| `createdAt` | Start timestamp |
-| `costInCents` | Execution cost |
+```ts
+import { runs, tasks } from "@trigger.dev/sdk";
+import type { myTask } from "./trigger/my-task";
 
-## Best Practices
+const handle = await tasks.trigger("my-task", { some: "data" });
+for await (const run of runs.subscribeToRun<typeof myTask>(handle.id)) {
+  console.log(run.payload.some, run.output?.some); // typed
+}
+```
 
-1. **Scope tokens narrowly** — only grant necessary permissions
-2. **Set expiration times** — don't use long-lived tokens
-3. **Use typed hooks** — pass task types for proper inference
-4. **Handle errors** — always check for errors in hooks
-5. **Throttle streams** — use `throttleInMs` to control re-renders
+`runs.subscribeToRun` completes when the run finishes, so the loop exits on its own.
 
-See `references/realtime.md` for complete documentation.
+## Common mistakes
+
+1. **CRITICAL: Triggering from the browser with a Public Access Token.** The
+   read token from `createPublicToken` cannot trigger tasks.
+   - Wrong: `useTaskTrigger("my-task", { accessToken: publicAccessTokenFromCreatePublicToken })`
+   - Correct: mint a single-use Trigger Token with `auth.createTriggerPublicToken("my-task")` and pass that.
+
+2. **Token with no scopes.** A scopeless token authorizes nothing, so every subscribe 403s.
+   - Wrong: `await auth.createPublicToken()`
+   - Correct: `await auth.createPublicToken({ scopes: { read: { runs: ["run_1234"] } } })`
+
+3. **Polling with `useRun`/SWR for live updates.** `useRun` is the SWR-based
+   management-API hook (not recommended for live state); set `refreshInterval: 0`
+   to stop polling if you do use it.
+   - Wrong: `useRun(runId, { refreshInterval: 1000 })` to track progress
+   - Correct: `useRealtimeRun(runId, { accessToken })` (no polling, no WebSocket setup)
+
+4. **Forgetting `"use client"`.** Realtime/trigger hooks cannot run in a server component.
+   - Wrong: a Next.js App Router server component using `useRealtimeRun`
+   - Correct: put `"use client";` at the top of any component using these hooks.
+
+5. **Shipping `payload`/`output` you do not render.**
+   - Wrong: `useRealtimeRun(runId, { accessToken })` for a status badge (large payloads over the wire)
+   - Correct: `useRealtimeRun(runId, { accessToken, skipColumns: ["payload", "output"] })`
+
+6. **Subscribing before the handle exists.**
+   - Wrong: `useRealtimeRun(handle, { accessToken: handle?.publicAccessToken })` with no guard
+   - Correct: add `enabled: !!handle` so it subscribes only once the trigger returns a handle.
+
+## References
+
+Sibling skills:
+- `trigger-tasks` for the task side: `streams.define()`, `metadata.set()`, and `wait.createToken`.
+- `trigger-authoring-chat-agent` and `trigger-chat-agent-advanced` for chat agents, which build on these realtime streams.
+
+Reference docs ship beside this skill in the same package, read them locally (no network), pinned to your installed version. The `sources:` frontmatter above lists every doc this skill draws from, all under `@trigger.dev/sdk/docs/`. Start with:
+- `@trigger.dev/sdk/docs/realtime/react-hooks/subscribe.mdx`
+- `@trigger.dev/sdk/docs/realtime/react-hooks/streams.mdx`
+- `@trigger.dev/sdk/docs/realtime/auth.mdx`
+- `@trigger.dev/sdk/docs/realtime/run-object.mdx` (the realtime run object differs from the management-API object returned by `useRun`)
+
+## Version
+
+This skill is bundled inside `@trigger.dev/sdk` and read directly from `node_modules`, so it always matches your installed SDK version (see the adjacent `package.json`). The full documentation for these APIs ships alongside it under `@trigger.dev/sdk/docs/`.
