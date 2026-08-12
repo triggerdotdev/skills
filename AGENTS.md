@@ -1,114 +1,33 @@
-# Agent Skills
+# Agent skills — Trigger.dev
 
-This repository contains skills for building durable background tasks and AI agents with Trigger.dev.
+This repository is an **automatic mirror**. It exists so the Trigger.dev agent skills are discoverable and installable via [skills.sh](https://skills.sh) (`npx skills add triggerdotdev/skills`).
 
-## Skills Structure
+## Source of truth
 
-```
-trigger-setup/
-├── SKILL.md              # Getting started
-└── references/
-    ├── project-structure.md
-    └── environment-setup.md
+Skills are authored and maintained in the Trigger.dev monorepo — **do not edit them here**, any change is overwritten on the next sync:
 
-trigger-tasks/
-├── SKILL.md              # Core task patterns
-└── references/
-    ├── basic-tasks.md
-    ├── advanced-tasks.md
-    └── scheduled-tasks.md
+> [`triggerdotdev/trigger.dev`](https://github.com/triggerdotdev/trigger.dev)
 
-trigger-config/
-├── SKILL.md              # Build configuration
-└── references/
-    └── config.md
+The monorepo has two skill sets. We mirror the **full standalone guides** bundled in the SDK (`packages/trigger-sdk/skills`), not the thin pointer skills in `packages/cli-v3/skills` (those only make sense next to an installed SDK). The one exception is `trigger-setup`, sourced from `packages/cli-v3/skills/trigger-getting-started` — bootstrapping runs before the SDK exists, so it has no SDK-bundled version.
 
-trigger-agents/
-├── SKILL.md              # AI agent patterns
-└── references/
-    ├── orchestration.md
-    ├── waitpoints.md
-    ├── streaming.md
-    └── ai-tool.md
+## How the sync works
 
-trigger-realtime/
-├── SKILL.md              # Realtime subscriptions
-└── references/
-    └── realtime.md
+`.github/workflows/sync-from-monorepo.yml` runs monthly (plus `workflow_dispatch`, plus `repository_dispatch` for instant syncs from the monorepo). It:
 
-trigger-cost-savings/
-├── SKILL.md              # Cost optimization analysis
-└── references/
-    └── cost-reduction.md
-```
+1. Clones the two monorepo skill dirs + the SDK `package.json`.
+2. Runs `scripts/mirror-skills.mjs`, which reads **`sync-map.json`**:
+   - `sources[]` — monorepo locations to mirror. A directory publishes **every** `trigger-*` skill inside it (so a new skill added to `packages/trigger-sdk/skills` upstream **auto-publishes here — no edit needed**); a path ending in a skill dir publishes just that one (used for `trigger-getting-started`, which only exists CLI-side).
+   - `renames{}` — monorepo skill name → published name, used **only** to preserve the established skills.sh install history (renaming a skill resets its install counter). Applied as a global text substitution across every mirrored file, so the frontmatter `name:` and all cross-skill references stay consistent.
+   - The `{{TRIGGER_SDK_VERSION}}` placeholder is resolved from the SDK `package.json`.
+   - Any skill dir here that the mirror doesn't produce is removed. If a **CLI-only** skill appears upstream (no SDK-bundled full version, like `getting-started`), the sync logs a warning so a human can decide whether to add it to `sources`.
+3. Runs `scripts/build-readme.mjs` to regenerate the "Available skills" block in `README.md` from each skill's frontmatter.
+4. Force-pushes a single `sync/monorepo-skills` branch and opens **one** PR — or updates the existing open one, so there is never more than one sync PR to merge.
 
-## Skill Format
+Merging that PR is the only manual step. The org blocks direct pushes to `main`, so the workflow can only open a PR; it never writes to `main`.
 
-Each skill follows the [Agent Skills specification](https://skills.sh):
+## Publishing / renaming
 
-```markdown
----
-name: skill-name
-description: When to use this skill and what it does
----
+New skills under a sourced directory publish automatically. You only edit `sync-map.json` to:
 
-# Skill Title
-
-Instructions for the agent...
-```
-
-## When to Load Skills
-
-- **trigger-setup**: When adding Trigger.dev to a project for the first time
-- **trigger-tasks**: When creating background jobs, async workflows, or scheduled tasks
-- **trigger-config**: When setting up `trigger.config.ts` or adding build extensions
-- **trigger-agents**: When building LLM-powered workflows, orchestration, or multi-step AI agents
-- **trigger-realtime**: When building React UIs that show task progress or stream data
-- **trigger-cost-savings**: When asked to reduce spend, optimize costs, audit usage, or review task efficiency
-
-## Key Patterns
-
-### Always Use SDK v4
-
-```ts
-// ✅ Correct
-import { task } from "@trigger.dev/sdk";
-
-export const myTask = task({
-  id: "my-task",
-  run: async (payload) => { ... }
-});
-
-// ❌ Never use (deprecated v2)
-client.defineJob({ ... });
-```
-
-### Check Result Before Output
-
-```ts
-const result = await childTask.triggerAndWait(payload);
-
-// ✅ Correct
-if (result.ok) {
-  console.log(result.output);
-}
-
-// ❌ Wrong - result is not the output
-console.log(result.someProperty);
-```
-
-### Never Promise.all with Waits
-
-```ts
-// ❌ Not supported
-await Promise.all([
-  childTask.triggerAndWait(p1),
-  childTask.triggerAndWait(p2),
-]);
-
-// ✅ Use batchTriggerAndWait instead
-const results = await childTask.batchTriggerAndWait([
-  { payload: p1 },
-  { payload: p2 },
-]);
-```
+- **Preserve install history** when a skill's monorepo name differs from an existing skills.sh name → add a `renames` entry (e.g. `"trigger-authoring-tasks": "trigger-tasks"`).
+- **Add a CLI-only skill** the auto-mirror doesn't cover → add its path to `sources`.

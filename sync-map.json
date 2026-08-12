@@ -1,5 +1,12 @@
 {
-  "getting-started": "trigger-setup",
-  "authoring-tasks": "trigger-tasks",
-  "realtime-and-frontend": "trigger-realtime"
+  "_comment": "Marketing mirror config for skills.sh. `sources` lists monorepo locations to mirror: a directory publishes every trigger-* skill inside it; a path ending in a skill dir publishes just that one. We mirror the FULL standalone guides from packages/trigger-sdk/skills (not the thin pointer skills in packages/cli-v3/skills), plus trigger-getting-started which only exists CLI-side (bootstrapping runs before the SDK is installed). New skills added to a sourced directory publish automatically — no edit needed here. `renames` maps a monorepo skill name to the name published here, only to preserve the established skills.sh install history (renaming a skill resets its install counter); it is applied as a global text substitution across all mirrored files so cross-skill references stay consistent.",
+  "sources": [
+    "packages/trigger-sdk/skills",
+    "packages/cli-v3/skills/trigger-getting-started"
+  ],
+  "renames": {
+    "trigger-getting-started": "trigger-setup",
+    "trigger-authoring-tasks": "trigger-tasks",
+    "trigger-realtime-and-frontend": "trigger-realtime"
+  }
 }

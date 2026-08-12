@@ -1,142 +1,98 @@
 ---
 name: trigger-cost-savings
-description: Analyze Trigger.dev tasks, schedules, and runs for cost optimization opportunities. Use when asked to reduce spend, optimize costs, audit usage, right-size machines, or review task efficiency. Requires Trigger.dev MCP tools for run analysis.
+description: >
+  Analyze Trigger.dev tasks, schedules, and runs for cost optimization opportunities. Use when
+  asked to reduce spend, optimize costs, audit usage, right-size machines, or review task
+  efficiency. Combines static source analysis with live run analysis via the Trigger.dev MCP
+  tools (list_runs, get_run_details, get_current_worker).
+type: core
+library: trigger.dev
+sources:
+  - docs/how-to-reduce-your-spend.mdx
+  - docs/machines.mdx
+  - docs/runs/max-duration.mdx
+  - docs/queue-concurrency.mdx
+  - docs/idempotency.mdx
+  - docs/triggering.mdx
+  - docs/errors-retrying.mdx
+  - docs/limits.mdx
 ---
 
 # Trigger.dev Cost Savings Analysis
 
-Analyze task runs and configurations to find cost reduction opportunities.
+Analyze task runs and configurations to find cost reduction opportunities. This skill pairs static source analysis with live run analysis via the Trigger.dev MCP server.
 
-## Prerequisites: MCP Tools
+## Before you start: read the canonical guidance
 
-This skill requires the **Trigger.dev MCP server** to analyze live run data.
+The authoritative, version-pinned cost guidance ships beside this skill. Read it first so your recommendations match the installed SDK version:
 
-### Check MCP availability
+- `@trigger.dev/sdk/docs/how-to-reduce-your-spend.mdx` — the canonical "reduce your spend" guide (machine sizing, idempotency de-dup, parallelism, retries, `maxDuration`, checkpointed waits, debounce).
+- Supporting references: `@trigger.dev/sdk/docs/machines.mdx`, `runs/max-duration.mdx`, `queue-concurrency.mdx`, `idempotency.mdx`, `triggering.mdx` (debounce + batch), `errors-retrying.mdx` (`AbortTaskRunError`).
 
-Before analysis, verify these MCP tools are available:
+## Prerequisites: MCP tools
+
+Live run analysis needs the **Trigger.dev MCP server**. Verify these tools are available:
+
 - `list_runs` — list runs with filters (status, task, time period, machine size)
 - `get_run_details` — get run logs, duration, and status
 - `get_current_worker` — get registered tasks and their configurations
 
-If these tools are **not available**, instruct the user:
+If they're not available, tell the user to install the MCP server:
 
-```
-To analyze your runs, you need the Trigger.dev MCP server installed.
-
-Run this command to install it:
-
-  npx trigger.dev@latest install-mcp
-
-This launches an interactive wizard that configures the MCP server for your AI client.
+```bash
+npx trigger.dev@latest install-mcp
 ```
 
-Do NOT proceed with run analysis without MCP tools. You can still review source code for static issues (see Static Analysis below).
+Without the MCP tools you can still do the static source analysis below; do not fabricate run data.
 
-### Load latest cost reduction documentation
+## Analysis workflow
 
-Before giving recommendations, fetch the latest guidance:
+### Step 1: Static analysis (source code)
 
-```
-WebFetch: https://trigger.dev/docs/how-to-reduce-your-spend
-```
+Scan task files for:
 
-Use the fetched content to ensure recommendations are current. If the fetch fails, fall back to the reference documentation in `references/cost-reduction.md`.
+1. **Oversized machines** — tasks on `large-1x`/`large-2x` without clear need.
+2. **Missing `maxDuration`** — no execution-time limit (runaway-cost risk).
+3. **Excessive retries** — `maxAttempts` > 5 without `AbortTaskRunError` for known-permanent failures.
+4. **Missing debounce** — high-frequency triggers without debounce.
+5. **Missing idempotency** — payment/critical tasks without idempotency keys.
+6. **Polling instead of waits** — `setTimeout`/`setInterval`/sleep loops instead of `wait.for()`.
+7. **Short waits** — `wait.for()` under 5 seconds (not checkpointed, wastes compute).
+8. **Sequential instead of batch** — multiple `triggerAndWait()` calls that could be `batchTriggerAndWait()`.
+9. **Over-scheduled crons** — schedules firing more often than needed.
 
-## Analysis Workflow
+### Step 2: Run analysis (requires MCP tools)
 
-### Step 1: Static Analysis (source code)
+- **2a. Expensive tasks** — `list_runs` over `period: "30d"`/`"7d"`; find high total compute (duration × count), high failure rates, and large machines with short durations (over-provisioned).
+- **2b. Failure patterns** — `list_runs` with `status: "FAILED"`/`"CRASHED"`; separate transient (retryable) from permanent; suggest `AbortTaskRunError` for the latter; estimate wasted retry compute.
+- **2c. Machine utilization** — `get_run_details` on sample runs; if a `large-2x` task consistently runs in under a second, or is I/O-bound (API/DB), it's over-provisioned.
+- **2d. Schedule frequency** — `get_current_worker` to list cron patterns; flag schedules that are too frequent for their purpose.
 
-Scan task files in the project for these issues:
+### Step 3: Generate recommendations
 
-1. **Oversized machines** — tasks using `large-1x` or `large-2x` without clear need
-2. **Missing `maxDuration`** — tasks without execution time limits (runaway cost risk)
-3. **Excessive retries** — `maxAttempts` > 5 without `AbortTaskRunError` for known failures
-4. **Missing debounce** — high-frequency triggers without debounce configuration
-5. **Missing idempotency** — payment/critical tasks without idempotency keys
-6. **Polling instead of waits** — `setTimeout`/`setInterval`/sleep loops instead of `wait.for()`
-7. **Short waits** — `wait.for()` with < 5 seconds (not checkpointed, wastes compute)
-8. **Sequential instead of batch** — multiple `triggerAndWait()` calls that could use `batchTriggerAndWait()`
-9. **Over-scheduled crons** — schedules running more frequently than necessary
-
-### Step 2: Run Analysis (requires MCP tools)
-
-Use MCP tools to analyze actual usage patterns:
-
-#### 2a. Identify expensive tasks
-
-```
-list_runs with filters:
-- period: "30d" or "7d"
-- Sort by duration or cost
-- Check across different task IDs
-```
-
-Look for:
-- Tasks with high total compute time (duration x run count)
-- Tasks with high failure rates (wasted retries)
-- Tasks running on large machines with short durations (over-provisioned)
-
-#### 2b. Analyze failure patterns
-
-```
-list_runs with status: "FAILED" or "CRASHED"
-```
-
-For high-failure tasks:
-- Check if failures are retryable (transient) vs permanent
-- Suggest `AbortTaskRunError` for known non-retryable errors
-- Calculate wasted compute from failed retries
-
-#### 2c. Check machine utilization
-
-```
-get_run_details for sample runs of each task
-```
-
-Compare actual resource usage against machine preset:
-- If a task on `large-2x` consistently runs in < 1 second, it's over-provisioned
-- If tasks are I/O-bound (API calls, DB queries), they likely don't need large machines
-
-#### 2d. Review schedule frequency
-
-```
-get_current_worker to list scheduled tasks and their cron patterns
-```
-
-Flag schedules that may be too frequent for their purpose.
-
-### Step 3: Generate Recommendations
-
-Present findings as a prioritized list with estimated impact:
+Present a prioritized report with estimated impact:
 
 ```markdown
 ## Cost Optimization Report
 
-### High Impact
-1. **Right-size `process-images` machine** — Currently `large-2x`, average run 2s.
-   Switching to `small-2x` could reduce this task's cost by ~16x.
-   ```ts
-   machine: { preset: "small-2x" }  // was "large-2x"
-   ```
+### High impact
+1. **Right-size `process-images`** — currently `large-2x`, average run 2s. `small-2x` could cut this task's cost by ~16x.
+   `machine: { preset: "small-2x" }`  // was "large-2x"
 
-### Medium Impact
-2. **Add debounce to `sync-user-data`** — 847 runs/day, often triggered in bursts.
-   ```ts
-   debounce: { key: `user-${userId}`, delay: "5s" }
-   ```
+### Medium impact
+2. **Debounce `sync-user-data`** — 847 runs/day, often bursty.
+   `debounce: { key: \`user-${userId}\`, delay: "5s" }`
 
-### Low Impact / Best Practices
-3. **Add `maxDuration` to `generate-report`** — No timeout configured.
-   ```ts
-   maxDuration: 300  // 5 minutes
-   ```
+### Low impact / best practice
+3. **Add `maxDuration` to `generate-report`** — no timeout configured.
+   `maxDuration: 300`  // 5 minutes
 ```
 
-## Machine Preset Costs (relative)
+## Machine preset costs (relative)
 
 Larger machines cost proportionally more per second of compute:
 
-| Preset | vCPU | RAM | Relative Cost |
+| Preset | vCPU | RAM | Relative cost |
 |--------|------|-----|---------------|
 | micro | 0.25 | 0.25 GB | 0.25x |
 | small-1x | 0.5 | 0.5 GB | 1x (baseline) |
@@ -146,13 +102,15 @@ Larger machines cost proportionally more per second of compute:
 | large-1x | 4 | 8 GB | 8x |
 | large-2x | 8 | 16 GB | 16x |
 
-## Key Principles
+## Key principles
 
-- **Waits > 5 seconds are free** — checkpointed, no compute charge
-- **Start small, scale up** — default `small-1x` is right for most tasks
-- **I/O-bound tasks don't need big machines** — API calls, DB queries wait on network
-- **Debounce saves the most on high-frequency tasks** — consolidates bursts into single runs
-- **Idempotency prevents duplicate work** — especially important for expensive operations
-- **`AbortTaskRunError` stops wasteful retries** — don't retry permanent failures
+- **Waits > 5 seconds are free** — checkpointed, no compute charge.
+- **Start small, scale up** — the default `small-1x` is right for most tasks.
+- **I/O-bound tasks don't need big machines** — API calls and DB queries wait on the network.
+- **Debounce saves the most on high-frequency tasks** — it consolidates bursts into single runs.
+- **Idempotency prevents duplicate billed work** — especially for expensive operations.
+- **`AbortTaskRunError` stops wasteful retries** — don't pay to retry permanent failures.
 
-See `references/cost-reduction.md` for detailed strategies with code examples.
+## Version
+
+This skill is bundled inside `@trigger.dev/sdk` and read directly from `node_modules`, so it always matches your installed SDK version (see the adjacent `package.json`). The full cost documentation ships alongside it under `@trigger.dev/sdk/docs/`.
