@@ -70,11 +70,14 @@ jobs:
           Full skill guides are mirrored per \`sync-map.json\` and the README skills list is regenerated from frontmatter. **Edit skills in the monorepo, not here.**
 
           Merged automatically by the sync workflow. Check the run logs for any \`unmapped upstream skill\` warnings (a new monorepo skill you may want to publish here)."
-          existing=$(gh pr list --head sync/monorepo-skills --state open --json number --jq '.[0].number // empty')
-          if [ -n "$existing" ]; then
-            gh pr edit "$existing" --body "$body"
+          # --head matches branch names from forks too, so only take a same-repo PR,
+          # and only merge the exact commit pushed above.
+          pr=$(gh pr list --head sync/monorepo-skills --state open --json number,isCrossRepository \
+            --jq 'map(select(.isCrossRepository | not)) | .[0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --body "$body"
           else
-            gh pr create --head sync/monorepo-skills --base main \
-              --title "chore: sync skills from monorepo" --body "$body"
+            pr=$(gh pr create --head sync/monorepo-skills --base main \
+              --title "chore: sync skills from monorepo" --body "$body")
           fi
-          gh pr merge sync/monorepo-skills --squash --delete-branch
+          gh pr merge "$pr" --squash --delete-branch --match-head-commit "$(git rev-parse HEAD)"
