@@ -143,6 +143,12 @@ await waitUntilComplete();
 5s timeout, before `onTurnComplete`). `chat.inject(messages)` queues `ModelMessage[]` that drain at
 the next turn start or `prepareStep` boundary.
 
+Two lanes, decided by role. A `role: "system"` message goes to the model's instructions, where it is
+trusted like the system prompt, and applies to the next turn only. Any other role joins the
+conversation and is untrusted by construction, so put checkable facts there and directives in the
+system lane. The instructions lane reaches the model only through the managed `streamText` (or a
+`chat.toStreamTextOptions()` spread), since that is where the SDK can set instructions.
+
 ```ts
 export const myChat = chat.agent({
   id: "my-chat",
@@ -154,8 +160,9 @@ export const myChat = chat.agent({
       })()
     );
   },
-  run: async ({ messages, signal }) =>
-    streamText({ ...chat.toStreamTextOptions({ registry }), messages, abortSignal: signal, stopWhen: stepCountIs(15) }),
+  registry,
+  run: async ({ messages, signal, streamText }) =>
+    streamText({ messages, abortSignal: signal, stopWhen: stepCountIs(15) }),
 });
 ```
 
@@ -163,8 +170,9 @@ export const myChat = chat.agent({
 
 `compaction.shouldCompact` decides when, `summarize` produces the summary that replaces the model
 messages. UI messages are preserved by default (customize via `compactUIMessages`). The `prepareStep`
-that performs inner-loop compaction is auto-injected by `chat.toStreamTextOptions()`; a `prepareStep`
-you pass after the spread wins.
+that performs inner-loop compaction rides the managed `streamText`, which composes a `prepareStep`
+you pass after it. Spreading `chat.toStreamTextOptions()` and then passing your own replaces it,
+switching compaction off.
 
 ```ts
 compaction: {
@@ -177,29 +185,53 @@ compaction: {
 },
 ```
 
-### 5. Actions: mutate state without a turn
+### 5. Actions: edit state, and optionally answer
 
-`actionSchema` validates; `onAction` mutates via `chat.history` (`slice`, `replace`, `rollbackTo`,
-`remove`, `getPendingToolCalls`, `extractNewToolResults`). Actions fire `hydrateMessages` and
-`onAction` only, never `run()` or the turn hooks. Return a `StreamTextResult`, string, or `UIMessage`
-to also emit a model response.
+`actionSchema` validates; `onAction` edits via `chat.history` (`slice`, `replace`, `rollbackTo`,
+`remove`, `getPendingToolCalls`, `extractNewToolResults`). An action fires `hydrateMessages` and
+`onAction` only. Return nothing for an edit-only action: no model call, and the turn counter does not
+advance. Return `chat.turn()` to answer after the edit: a turn runs on the edited history with
+everything a turn has (the agent's system prompt and tools, steering, compaction, injected
+instructions, `onTurnStart` and `onTurnComplete`, persistence), and `run()` receives it with
+`trigger: "action-turn"`. `onAction` has no `streamText` argument, and returning a
+`StreamTextResult`, string or `UIMessage` from it throws.
+
+Persistence splits by model. With transcript storage (`storage` on `chat.agent`; the platform
+snapshot by default), the runtime hands storage a changeset with `reason: "action"` after an action
+that changed the conversation: an undo is one `truncateAfter`, a regenerate is a `truncateAfter`
+followed by the new answer's `put` when the turn completes, and an edit is a `put` for the edited
+id. With the deprecated `hydrateMessages` your store is the source of truth and the runtime does
+not write, so mirror every mutation yourself: a regenerate is a delete and an insert, and the
+answer that follows `chat.turn()` arrives through `onTurnComplete` like any turn's answer.
 
 ```ts
 export const myChat = chat.agent({
   id: "my-chat",
   actionSchema: z.discriminatedUnion("type", [
     z.object({ type: z.literal("undo") }),
+    z.object({ type: z.literal("regenerate") }),
     z.object({ type: z.literal("rollback"), targetMessageId: z.string() }),
   ]),
   onAction: async ({ action }) => {
-    if (action.type === "undo") chat.history.slice(0, -2);
+    if (action.type === "undo") chat.history.slice(0, -2); // edit only
     if (action.type === "rollback") chat.history.rollbackTo(action.targetMessageId);
+    if (action.type === "regenerate") {
+      chat.history.slice(0, -1);
+      return chat.turn(); // answer the edited history
+    }
   },
-  run: async ({ messages, signal }) => streamText({ model: anthropic("claude-sonnet-4-5"), messages, abortSignal: signal }),
+  run: async ({ messages, signal, streamText }) =>
+    streamText({ model: anthropic("claude-sonnet-4-5"), messages, abortSignal: signal }),
 });
 ```
 
-Send from the browser with `transport.sendAction(chatId, { type: "undo" })`, or server-side with
+Send from the browser through `useChat`, so the answer a turn produces renders like any turn:
+`sendMessage(undefined, { body: { action: { type: "regenerate" } } })`, `regenerate({ body: { action } })`,
+or `useChatActions({ sendMessage })` from `@trigger.dev/sdk/chat/react`. For regeneration, use
+`regenerate()` from `useChat` (Vercel AI SDK) which removes the last assistant message before
+streaming the new one; calling `sendMessage` with a regenerate action appends without removal,
+leaving both answers visible. `transport.sendAction(chatId, action)` returns a raw stream the
+caller must read and apply itself. Server-side, use
 `agentChat.sendAction({ type: "rollback", targetMessageId: "msg-3" })`.
 
 ### 6. Fast starts: Head Start
@@ -210,18 +242,19 @@ must be **schema-only** (a module importing `ai` + `zod` only); heavy executes s
 
 ```ts
 import { chat } from "@trigger.dev/sdk/chat-server";
-import { streamText, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { headStartTools } from "@/lib/chat-tools/schemas";
 
 export const chatHandler = chat.headStart({
   agentId: "my-chat",
-  run: async ({ chat: helper }) =>
+  // `streamText` from the run argument owns `messages`, `prompt`, `stopWhen`
+  // and `abortSignal`: the handover needs `stopWhen: stepCountIs(1)` so the agent,
+  // not this handler, runs step 2 onward. Passing any of them is a type error.
+  run: async ({ streamText }) =>
     streamText({
-      ...helper.toStreamTextOptions({ tools: headStartTools }),
       model: anthropic("claude-sonnet-4-6"),
       system: "You are helpful.",
-      stopWhen: stepCountIs(15),
+      tools: headStartTools,
     }),
 });
 // Next.js: export const POST = chatHandler;  Transport: headStart: "/api/chat"
@@ -248,8 +281,10 @@ export const myChat = chat.agent({
 ### 8. Pending messages (mid-stream user input)
 
 A message sent while a turn is streaming should NOT cancel the stream. Configure
-`pendingMessages` (`shouldInject`, `prepare`, `onReceived`, `onInjected`) on the agent so the SDK's
-auto-injected `prepareStep` folds them in at the next boundary. On the frontend, `usePendingMessages`
+`pendingMessages` (`shouldInject`, `prepare`, `onReceived`, `onInjected`) on the agent so the managed
+`streamText`'s `prepareStep` folds them in at the next boundary. An injected steering message is part
+of the conversation your hooks see, so it arrives in `uiMessages` and `newUIMessages` at
+`onTurnComplete` and an app persisting from there stores it without extra work. On the frontend, `usePendingMessages`
 returns `pending`, `steer(text)`, `queue(text)`, and `promoteToSteering(id)`; send via
 `transport.sendPendingMessage(chatId, uiMessage, metadata?)`.
 
