@@ -23,11 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'triggerdotdev/skills'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Fetch monorepo skills
         run: |
@@ -48,7 +48,7 @@ jobs:
           node scripts/build-readme.mjs
           rm -rf monorepo
 
-      - name: Open or update the single sync PR
+      - name: Open and merge the sync PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -62,12 +62,14 @@ jobs:
           git checkout -B sync/monorepo-skills
           git add -A
           git commit -m "chore: sync skills from triggerdotdev/trigger.dev@${MONOREPO_SHA:0:7}"
-          git push --force-with-lease origin sync/monorepo-skills
+          # The bot owns this branch, so a plain force push is safe. --force-with-lease
+          # fails here: the shallow checkout has no remote-tracking ref for it.
+          git push --force origin sync/monorepo-skills
           body="Automated mirror sync from [\`triggerdotdev/trigger.dev@${MONOREPO_SHA:0:7}\`](https://github.com/triggerdotdev/trigger.dev/commit/${MONOREPO_SHA}).
 
           Full skill guides are mirrored per \`sync-map.json\` and the README skills list is regenerated from frontmatter. **Edit skills in the monorepo, not here.**
 
-          This is the single standing sync PR — it is force-updated on every sync, so merging it whenever you like always ships the latest skills. Check the run logs for any \`unmapped upstream skill\` warnings (a new monorepo skill you may want to publish here)."
+          Merged automatically by the sync workflow. Check the run logs for any \`unmapped upstream skill\` warnings (a new monorepo skill you may want to publish here)."
           existing=$(gh pr list --head sync/monorepo-skills --state open --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
             gh pr edit "$existing" --body "$body"
@@ -75,3 +77,4 @@ jobs:
             gh pr create --head sync/monorepo-skills --base main \
               --title "chore: sync skills from monorepo" --body "$body"
           fi
+          gh pr merge sync/monorepo-skills --squash --delete-branch

@@ -21,9 +21,9 @@ The monorepo has two skill sets. We mirror the **full standalone guides** bundle
    - The `{{TRIGGER_SDK_VERSION}}` placeholder is resolved from the SDK `package.json`.
    - Any skill dir here that the mirror doesn't produce is removed. If a **CLI-only** skill appears upstream (no SDK-bundled full version, like `getting-started`), the sync logs a warning so a human can decide whether to add it to `sources`.
 3. Runs `scripts/build-readme.mjs` to regenerate the "Available skills" block in `README.md` from each skill's frontmatter.
-4. Force-pushes a single `sync/monorepo-skills` branch and opens **one** PR — or updates the existing open one, so there is never more than one sync PR to merge.
+4. Force-pushes a single `sync/monorepo-skills` branch, opens a PR (or updates the open one), and squash-merges it.
 
-Merging that PR is the only manual step. The org blocks direct pushes to `main`, so the workflow can only open a PR; it never writes to `main`.
+No manual step. `main` requires changes to land through a PR but needs no approval, so the workflow merges its own PR — each sync leaves a PR as an audit trail. The content was already reviewed upstream in the monorepo.
 
 ## Publishing / renaming
 
